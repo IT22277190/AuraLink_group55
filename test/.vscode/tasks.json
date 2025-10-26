@@ -1,0 +1,46 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Pre-Debug",
+            "type": "shell",
+            "command": "py",
+            "args": ["-m", "platformio", "run"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Wokwi: Build and Launch",
+            "type": "shell",
+            "command": "py",
+            "args": ["-m", "platformio", "run"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+        ,
+        {
+            "label": "Wokwi: Simulate",
+            "type": "shell",
+            "dependsOn": "Wokwi: Build and Launch",
+            "command": "npx",
+            "args": [
+                "wokwi",
+                "simulate",
+                ".pio/build/esp32doit-devkit-v1/firmware.bin",
+                "--board",
+                "esp32doit-devkit-v1"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
