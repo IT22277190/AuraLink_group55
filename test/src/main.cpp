@@ -1,23 +1,21 @@
 #include <WiFi.h>
-#include <HTTPClient.h>
 #include <PubSubClient.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <DHT.h>
-#include <ArduinoJson.h>
 
-// WiFi Configuration
-const char* ssid = "YourWiFiSSID";
-const char* password = "YourWiFiPassword";
-
-// FastAPI Server Configuration
-const char* fastApiHost = "YOUR_COMPUTER_IP"; // Example: "192.168.1.100"
-const int fastApiPort = 8000;
-const char* fastApiEndpoint = "/data";
-
-// MQTT Configuration
-const char* mqttServer = "test.mosquitto.org";
+// --- Wi-Fi and MQTT Configuration ---
+const char* ssid = "Redmi 9T"; // Your Wi-Fi Name
+const char* password = "1234abcd"; // Your Wi-Fi Password
+const char* mqttServer = "test.mosquitto.org"; // MQTT Broker Host
 const int mqttPort = 1883;
+const char* mqttClientId = "ESP32Client-AuraLink-V1"; // Unique ID for the client
+
+// --- MQTT TOPICS (Must match Python backend) ---
+#define TOPIC_SENSOR_DATA "auralink/sensor/data"
+#define TOPIC_DISPLAY_QUOTE "auralink/display/quote"
+#define TOPIC_DISPLAY_SUMMARY "auralink/display/summary"
+#define TOPIC_URGENCY_LED "auralink/urgency/led"
 
 // MQTT Topics
 const char* TOPIC_QUOTE = "auralink/display/quote";
@@ -37,6 +35,7 @@ const char* TOPIC_URGENCY = "auralink/urgency/led";
 // --- NEW LED Definitions ---
 #define LED_NOX_PIN 18    // NEW Pin for NOx/Air Quality Status
 #define LED_PIR_PIN 19    // NEW Pin for PIR Motion Blink
+#define LED_URGENCY_PIN 5 // NEW Pin for Urgency Status
 
 // I2C LCD (address confirmed by scanner)
 #define I2C_SDA 21
