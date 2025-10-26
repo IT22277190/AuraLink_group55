@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, WebSocket
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import asyncio
 import json
 import os
@@ -31,7 +33,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Mount static files directory
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# WebSocket connections store
+active_connections: List[WebSocket] = []
+
 # MQTT Topics
+TOPIC_SENSOR_DATA = "auralink/sensor/data"
 TOPIC_QUOTE = "auralink/display/quote"
 TOPIC_SUMMARY = "auralink/display/summary"
 TOPIC_URGENCY = "auralink/urgency/led"
@@ -40,6 +49,61 @@ TOPIC_URGENCY = "auralink/urgency/led"
 class SensorData(BaseModel):
     temperature: float
     humidity: float
+    light_percent: int = 0
+    nox_percent: int = 0
+
+async def broadcast_message(topic: str, payload: Dict):
+    if not active_connections:
+        return
+    
+    message = {}
+    if topic == TOPIC_SENSOR_DATA:
+        message = {
+            "type": "sensor_data",
+            **payload
+        }
+    elif topic == TOPIC_QUOTE:
+        message = {
+            "type": "display_message",
+            "quote": payload.get("quote", ""),
+            "summary": ""
+        }
+    elif topic == TOPIC_SUMMARY:
+        message = {
+            "type": "display_message",
+            "quote": "",
+            "summary": payload.get("summary", "")
+        }
+    elif topic == TOPIC_URGENCY:
+        message = {
+            "type": "urgency",
+            "level": payload.get("level", "LOW")
+        }
+
+    if message:
+        for connection in active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                logger.error(f"Failed to send message to WebSocket client: {e}")
+                active_connections.remove(connection)
+
+@app.get("/")
+async def get_index():
+    return FileResponse('static/web_interface.html')
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+    try:
+        while True:
+            # Keep the connection alive
+            await websocket.receive_text()
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        active_connections.remove(websocket)
 
 # Mock emails for demonstration
 MOCK_EMAILS = [
