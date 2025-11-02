@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuraLink Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .label {
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+        .chart {
+            width: 100%;
+            height: 300px;
+        }
+        .urgency {
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .high {
+            background-color: #ff4d4d;
+            color: white;
+        }
+        .medium {
+            background-color: #ffd700;
+            color: black;
+        }
+        .low {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #messageBox {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AuraLink Dashboard</h1>
+        
+        <div class="dashboard">
+            <div class="card">
+                <div class="label">Temperature</div>
+                <div class="value" id="temperature">--°C</div>
+                <div id="tempChart" class="chart"></div>
+            </div>
+            
+            <div class="card">
+                <div class="label">Humidity</div>
+                <div class="value" id="humidity">--%</div>
+                <div id="humidityChart" class="chart"></div>
+            </div>
+            
+            <div class="card">
+                <div class="label">Light Level</div>
+                <div class="value" id="light">--%</div>
+                <div id="lightChart" class="chart"></div>
+            </div>
+            
+            <div class="card">
+                <div class="label">Air Quality (NOx)</div>
+                <div class="value" id="nox">--%</div>
+                <div id="noxChart" class="chart"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">System Status</div>
+            <div id="urgencyStatus" class="urgency low">NORMAL</div>
+        </div>
+
+        <div id="messageBox">
+            <h3>Latest Messages</h3>
+            <p><strong>Quote: </strong><span id="quote">Waiting for data...</span></p>
+            <p><strong>Summary: </strong><span id="summary">Waiting for data...</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Initialize time series data
+        const timeSeriesLength = 20;
+        const timeData = Array(timeSeriesLength).fill(new Date());
+        const tempData = Array(timeSeriesLength).fill(null);
+        const humidityData = Array(timeSeriesLength).fill(null);
+        const lightData = Array(timeSeriesLength).fill(null);
+        const noxData = Array(timeSeriesLength).fill(null);
+
+        // Initialize charts
+        const charts = {
+            tempChart: createChart('tempChart', 'Temperature', '°C'),
+            humidityChart: createChart('humidityChart', 'Humidity', '%'),
+            lightChart: createChart('lightChart', 'Light Level', '%'),
+            noxChart: createChart('noxChart', 'NOx Level', '%')
+        };
+
+        function createChart(elementId, title, units) {
+            return Plotly.newPlot(elementId, [{
+                y: [],
+                mode: 'lines',
+                line: {color: '#2c3e50'}
+            }], {
+                title: title,
+                yaxis: {title: units},
+                margin: {t: 30, b: 30, l: 30, r: 10},
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+            });
+        }
+
+        function updateChart(chartDiv, newValue) {
+            const update = {
+                y: [[newValue]],
+                'line.color': ['#2c3e50']
+            };
+            Plotly.update(chartDiv, update);
+        }
+
+        // WebSocket connection
+        const ws = new WebSocket('ws://localhost:8000/ws');
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'sensor_data') {
+                // Update current values
+                document.getElementById('temperature').textContent = `${data.temperature.toFixed(1)}°C`;
+                document.getElementById('humidity').textContent = `${data.humidity.toFixed(1)}%`;
+                document.getElementById('light').textContent = `${data.light_percent}%`;
+                document.getElementById('nox').textContent = `${data.nox_percent}%`;
+
+                // Update charts
+                updateChart('tempChart', data.temperature);
+                updateChart('humidityChart', data.humidity);
+                updateChart('lightChart', data.light_percent);
+                updateChart('noxChart', data.nox_percent);
+            }
+            else if (data.type === 'display_message') {
+                document.getElementById('quote').textContent = data.quote || 'No quote available';
+                document.getElementById('summary').textContent = data.summary || 'No summary available';
+            }
+            else if (data.type === 'urgency') {
+                const urgencyDiv = document.getElementById('urgencyStatus');
+                urgencyDiv.textContent = data.level;
+                urgencyDiv.className = 'urgency ' + data.level.toLowerCase();
+            }
+        };
+
+        ws.onclose = function() {
+            console.log('WebSocket connection closed');
+            // Attempt to reconnect after 5 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+        };
+    </script>
+</body>
+</html>

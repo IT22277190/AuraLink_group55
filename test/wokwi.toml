@@ -2,3 +2,8 @@
 version = 1
 firmware = ".pio/build/esp32doit-devkit-v1/firmware.bin"
 elf = ".pio/build/esp32doit-devkit-v1/firmware.elf"
+
+# WiFi Configuration for Wokwi
+[[wifi]]
+ssid = "Nyiwg 9A"
+password = "aaaaa11111"

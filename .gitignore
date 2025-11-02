@@ -14,6 +14,8 @@ __pycache__/
 !.vscode/extensions.json
 !.vscode/settings.json
 
+.env/
+
 # PlatformIO
 .pio/
 .vscode/.browse.c_cpp.db*

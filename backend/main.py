@@ -3,7 +3,10 @@ import json
 import time
 import threading
 import paho.mqtt.client as mqtt
-import openai
+try:
+    import openai
+except Exception:
+    openai = None
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -21,12 +24,14 @@ TOPIC_DISPLAY_QUOTE = "auralink/display/quote"
 TOPIC_DISPLAY_SUMMARY = "auralink/display/summary"
 TOPIC_URGENCY_LED = "auralink/urgency/led"
 
-# Check for OpenAI API Key
-if not OPENAI_API_KEY:
-    print("FATAL ERROR: OPENAI_API_KEY environment variable not set.")
-    exit(1)
-
-openai.api_key = OPENAI_API_KEY
+# OpenAI availability check
+if openai is None:
+    print("WARNING: openai package not installed. LLM features will be disabled.")
+else:
+    if OPENAI_API_KEY:
+        openai.api_key = OPENAI_API_KEY
+    else:
+        print("WARNING: OPENAI_API_KEY environment variable not set. LLM features will be disabled.")
 
 # --- Mock Email Service ---
 # In a real-world application, this would use an API (e.g., Gmail API)

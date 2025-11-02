@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, WebSocket
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import asyncio
 import json
 import os
@@ -19,7 +21,7 @@ load_dotenv()
 # Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY must be set in .env file")
+    logger.warning("OPENAI_API_KEY not set — OpenAI features will be disabled. Set OPENAI_API_KEY in .env to enable them.")
 
 MQTT_BROKER_HOST = os.getenv("MQTT_BROKER_HOST", "test.mosquitto.org")
 MQTT_BROKER_PORT = int(os.getenv("MQTT_BROKER_PORT", "1883"))
@@ -31,7 +33,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Mount static files directory using a path relative to this file so the app works
+# regardless of the current working directory when the module is executed.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+if not os.path.isdir(STATIC_DIR):
+    logger.info(f"Static directory '{STATIC_DIR}' does not exist. Creating it.")
+    try:
+        os.makedirs(STATIC_DIR, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Failed to create static directory: {e}")
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# WebSocket connections store
+active_connections: List[WebSocket] = []
+
 # MQTT Topics
+TOPIC_SENSOR_DATA = "auralink/sensor/data"
 TOPIC_QUOTE = "auralink/display/quote"
 TOPIC_SUMMARY = "auralink/display/summary"
 TOPIC_URGENCY = "auralink/urgency/led"
@@ -40,6 +59,68 @@ TOPIC_URGENCY = "auralink/urgency/led"
 class SensorData(BaseModel):
     temperature: float
     humidity: float
+    light_percent: int = 0
+    nox_percent: int = 0
+
+async def broadcast_message(topic: str, payload: Dict):
+    if not active_connections:
+        return
+    
+    message = {}
+    if topic == TOPIC_SENSOR_DATA:
+        message = {
+            "type": "sensor_data",
+            **payload
+        }
+    elif topic == TOPIC_QUOTE:
+        message = {
+            "type": "display_message",
+            "quote": payload.get("quote", ""),
+            "summary": ""
+        }
+    elif topic == TOPIC_SUMMARY:
+        message = {
+            "type": "display_message",
+            "quote": "",
+            "summary": payload.get("summary", "")
+        }
+    elif topic == TOPIC_URGENCY:
+        message = {
+            "type": "urgency",
+            "level": payload.get("level", "LOW")
+        }
+
+    if message:
+        for connection in active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                logger.error(f"Failed to send message to WebSocket client: {e}")
+                active_connections.remove(connection)
+
+@app.get("/")
+async def get_index():
+    index_path = os.path.join(STATIC_DIR, 'web_interface.html')
+    if not os.path.isfile(index_path):
+        # Return a minimal HTML page explaining the missing file
+        return FileResponse(index_path) if os.path.exists(index_path) else {
+            "status": "error",
+            "message": f"web_interface.html not found in {STATIC_DIR}"
+        }
+    return FileResponse(index_path)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+    try:
+        while True:
+            # Keep the connection alive
+            await websocket.receive_text()
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        active_connections.remove(websocket)
 
 # Mock emails for demonstration
 MOCK_EMAILS = [
